@@ -1,0 +1,33 @@
+diff --git a/src/video_core/renderer_vulkan/vk_compute_pipeline.cpp b/src/video_core/renderer_vulkan/vk_compute_pipeline.cpp
+index 87824f90..b26f00d3 100644
+--- a/src/video_core/renderer_vulkan/vk_compute_pipeline.cpp
++++ b/src/video_core/renderer_vulkan/vk_compute_pipeline.cpp
+@@ -234,7 +234,10 @@ bool ComputePipeline::BindResources(VideoCore::BufferCache& buffer_cache,
+                     LOG_WARNING(Render_Vulkan, "Unexpected metadata read by a CS shader (buffer)");
+                 }
+             }
+-            if (desc.is_written && info->pgm_hash != 0xfefebf9f && info->pgm_hash != 0x3d5ebf4e) {
++            if (desc.is_written && info->pgm_hash != 0xfefebf9f
++                // Adjo video player fix
++                //&& info->pgm_hash != 0x3d5ebf4e
++                ) {
+                 texture_cache.InvalidateMemory(address, size);
+             }
+             const u32 alignment = instance.TexelBufferMinAlignment();
+diff --git a/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp b/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp
+index b738c617..ad58951e 100644
+--- a/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp
++++ b/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp
+@@ -64,9 +64,10 @@ const ComputePipeline* PipelineCache::GetComputePipeline() {
+ }
+ 
+ bool ShouldSkipShader(u64 shader_hash, const char* shader_type) {
+-    static constexpr std::array<u64, 7> skip_hashes = {0xa509af23, 0x4ca76892, 0xa954e79d,
++    static constexpr std::array<u64, 11> skip_hashes = {0xa509af23, 0x4ca76892, 0xa954e79d,
+                                                        0x42f2a521, 0x2da7fe60, 0x1635154c,
+-                                                       0x8e3f8dc4};
++                                                       0x8e3f8dc4, 0x77d1c63, 0xc0cbc309,
++                                                       0xff7a6d7c, 0xddfbac23};
+     if (std::ranges::contains(skip_hashes, shader_hash)) {
+         LOG_WARNING(Render_Vulkan, "Skipped {} shader hash {:#x}.", shader_type, shader_hash);
+         return true;
