@@ -1,19 +1,8 @@
-From 481e18a245f8a19a540877778d7bc45a91672519 Mon Sep 17 00:00:00 2001
-From: IndecisiveTurtle <47210458+raphaelthegreat@users.noreply.github.com>
-Date: Thu, 29 Aug 2024 19:52:50 +0300
-Subject: [PATCH] video_core: Some bloodborne hacks
-
----
- .../libraries/kernel/thread_management.cpp    |  9 +++
- .../renderer_vulkan/vk_compute_pipeline.cpp   | 70 ++++++++++++++++++-
- .../renderer_vulkan/vk_pipeline_cache.cpp     |  4 +-
- 3 files changed, 81 insertions(+), 2 deletions(-)
-
 diff --git a/src/core/libraries/kernel/thread_management.cpp b/src/core/libraries/kernel/thread_management.cpp
-index 74ef392fa..2d9211385 100644
+index 11d472a4..88d33d5f 100644
 --- a/src/core/libraries/kernel/thread_management.cpp
 +++ b/src/core/libraries/kernel/thread_management.cpp
-@@ -1070,7 +1070,16 @@ ScePthread PThreadPool::Create() {
+@@ -1071,7 +1071,16 @@ ScePthread PThreadPool::Create() {
          }
      }
  
@@ -31,10 +20,10 @@ index 74ef392fa..2d9211385 100644
      ret->is_detached = false;
      ret->is_almost_done = false;
 diff --git a/src/video_core/renderer_vulkan/vk_compute_pipeline.cpp b/src/video_core/renderer_vulkan/vk_compute_pipeline.cpp
-index 1d9001238..87824f908 100644
+index 1d900123..f3d764f2 100644
 --- a/src/video_core/renderer_vulkan/vk_compute_pipeline.cpp
 +++ b/src/video_core/renderer_vulkan/vk_compute_pipeline.cpp
-@@ -107,6 +107,74 @@ bool ComputePipeline::BindResources(VideoCore::BufferCache& buffer_cache,
+@@ -107,6 +107,76 @@ bool ComputePipeline::BindResources(VideoCore::BufferCache& buffer_cache,
      Shader::PushData push_data{};
      u32 binding{};
  
@@ -43,7 +32,9 @@ index 1d9001238..87824f908 100644
 +        const auto src_sharp = src.GetSharp(*info);
 +        const auto& dst = info->texture_buffers[1];
 +        const auto dst_sharp = dst.GetSharp(*info);
-+        if (dst_sharp.base_address == 0x510e0000 || dst_sharp.base_address == 0x1926e0000 ||
++        if (dst_sharp.base_address == 0x510e0000 ||
++            dst_sharp.base_address == 0x1926e0000 || // Release
++            dst_sharp.base_address == 0x1928e0000 || // ReleaseWithDebInfo
 +            dst_sharp.base_address == 0x1d42e0000) {
 +            VideoCore::ImageViewInfo view_info;
 +            view_info.format = vk::Format::eR8G8B8A8Unorm;
@@ -109,27 +100,28 @@ index 1d9001238..87824f908 100644
      for (const auto& desc : info->buffers) {
          const auto vsharp = desc.GetSharp(*info);
          const bool is_storage = desc.IsStorage(vsharp);
-@@ -166,7 +234,7 @@ bool ComputePipeline::BindResources(VideoCore::BufferCache& buffer_cache,
+@@ -166,7 +236,7 @@ bool ComputePipeline::BindResources(VideoCore::BufferCache& buffer_cache,
                      LOG_WARNING(Render_Vulkan, "Unexpected metadata read by a CS shader (buffer)");
                  }
              }
 -            if (desc.is_written) {
-+            if (desc.is_written && info->pgm_hash != 0xfefebf9f && info->pgm_hash != 0x3d5ebf4e) {
++            if (desc.is_written && info->pgm_hash != 0xfefebf9f) { // Not skipping 0x3d5ebf4e as well, otherwise video player will be black
                  texture_cache.InvalidateMemory(address, size);
              }
              const u32 alignment = instance.TexelBufferMinAlignment();
 diff --git a/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp b/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp
-index f8de5ffeb..b738c617b 100644
+index f8de5ffe..db265472 100644
 --- a/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp
 +++ b/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp
-@@ -64,7 +64,9 @@ const ComputePipeline* PipelineCache::GetComputePipeline() {
+@@ -64,7 +64,10 @@ const ComputePipeline* PipelineCache::GetComputePipeline() {
  }
  
  bool ShouldSkipShader(u64 shader_hash, const char* shader_type) {
 -    static constexpr std::array<u64, 0> skip_hashes = {};
-+    static constexpr std::array<u64, 7> skip_hashes = {0xa509af23, 0x4ca76892, 0xa954e79d,
-+                                                       0x42f2a521, 0x2da7fe60, 0x1635154c,
-+                                                       0x8e3f8dc4};
++    static constexpr std::array<u64, 11> skip_hashes = {0xa509af23, 0x4ca76892, 0xa954e79d,
++                                                        0x42f2a521, 0x2da7fe60, 0x1635154c,
++                                                        0x8e3f8dc4, 0xc0cbc309, 0x77d1c63,
++                                                        0xff7a6d7c, 0xddfbac23};
      if (std::ranges::contains(skip_hashes, shader_hash)) {
          LOG_WARNING(Render_Vulkan, "Skipped {} shader hash {:#x}.", shader_type, shader_hash);
          return true;

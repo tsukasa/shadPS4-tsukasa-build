@@ -73,10 +73,6 @@ process {
         # Apply "official" bb-hacks patch
         "-- Applying bb-hacks patch..."
         & git apply "${PSScriptRoot}\shadPS4-bb-hacks.patch"
-    
-        # Apply Pino's collected community bb-hacks patch
-        "-- Applying Pino's community bb-hacks patch..."
-        & git apply "${PSScriptRoot}\shadPS4-bb-hacks-pino.patch"
     }
     
     Function Clean-ShadPs4 {
@@ -91,7 +87,7 @@ process {
         # Get the current git description for versioning
         $gitDesc = & git describe --always --long --dirty="${_gitDirty}"
     
-        "-- BuildOnly version: ${gitDesc}"
+        "-- Build version: ${gitDesc}"
     
         # Now build shadPS4
         & cmake -S "${ShadPs4SourcePath}" -B "${_buildDir}" -DCMAKE_BUILD_TYPE="${BuildType}" -DGIT_DESC="${gitDesc}" -DCMAKE_PREFIX_PATH="${QtPath}" -T "ClangCL" -DENABLE_QT_GUI="${_enableQtGui}"
