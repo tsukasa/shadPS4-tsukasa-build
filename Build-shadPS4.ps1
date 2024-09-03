@@ -42,6 +42,7 @@ begin {
     # Set the build and release directories, these should stay as-is
     $_buildDir    = Join-Path -Path $ShadPs4SourcePath -ChildPath "build"
     $_releaseDir  = Join-Path -Path $_buildDir -ChildPath $BuildType
+    $_patchesDir  = Join-Path -Path $PSScriptRoot -ChildPath "patches"
 }
 process {
     Function Pull-ShadPs4 {
@@ -52,6 +53,7 @@ process {
         # Reset and update source-code
         & git fetch --prune --tags
         & git reset --hard
+        & git clean -f -d
         & git checkout "${_gitBranch}"
         & git pull
         & git submodule update --init --force --recursive
@@ -62,17 +64,19 @@ process {
             return
         }
     
-        # Apply patch to make versioning configurable
-        "-- Applying tsukasa's CMakeList patch..."
-        & git apply "${PSScriptRoot}\shadPS4-cmake.patch"
-    
-        # Apply patch to not show main window if a bin file is being passed as arg
-        "-- Applying tsukasa's main_window patch..."
-        & git apply "${PSScriptRoot}\shadPS4-hidemainwindow.patch"
-    
-        # Apply "official" bb-hacks patch
-        "-- Applying bb-hacks patch..."
-        & git apply "${PSScriptRoot}\shadPS4-bb-hacks.patch"
+        $patches = Get-ChildItem -Path $_patchesDir -Filter *.patch
+
+        foreach($patch in $patches) {
+            $patchName = $patch.Name
+
+            "-- Applying patch: ${patchName}"
+            & git apply $patch.FullName
+
+            if ($LASTEXITCODE -ne 0) {
+                "-- Patch failed: ${patchName}"
+                return
+            }
+        }
     }
     
     Function Clean-ShadPs4 {
