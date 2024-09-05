@@ -29,20 +29,24 @@ param
     [Switch] $Install,
     # Path to the installation destination where -Install should copy the emulator to
     [Parameter(Mandatory=$False, Position=8)]
-    [String] $InstallDestination = "G:\Emulation\Emulators\shadPS4"
+    [String] $InstallDestination = "G:\Emulation\Emulators\shadPS4",
+    # Disable multithreaded build
+    [Parameter(Mandatory=$False, Position=9)]
+    [Switch] $SingleThreadedBuild
 )
 
 begin {
     # Enable Qt GUI
-    $_enableQtGui = "ON"
+    $_enableQtGui  = "ON"
     # Set the git branch to pull from (should be "main")
-    $_gitBranch   = "main"
+    $_gitBranch    = "main"
     # Set the git dirty suffix
-    $_gitDirty    = "-${env:USERNAME}/bb-hacks"
+    $_gitDirty     = "-${env:USERNAME}/bb-hacks"
     # Set the build and release directories, these should stay as-is
-    $_buildDir    = Join-Path -Path $ShadPs4SourcePath -ChildPath "build"
-    $_releaseDir  = Join-Path -Path $_buildDir -ChildPath $BuildType
-    $_patchesDir  = Join-Path -Path $PSScriptRoot -ChildPath "patches"
+    $_buildDirName = "build"
+    $_buildDir     = Join-Path -Path $ShadPs4SourcePath -ChildPath $_buildDirName
+    $_releaseDir   = Join-Path -Path $_buildDir -ChildPath $BuildType
+    $_patchesDir   = Join-Path -Path $PSScriptRoot -ChildPath "patches"
 }
 process {
     Function Pull-ShadPs4 {
@@ -53,7 +57,7 @@ process {
         # Reset and update source-code
         & git fetch --prune --tags
         & git reset --hard
-        & git clean -f -d
+        & git clean -f -d -e "${_buildDirName}/"
         & git checkout "${_gitBranch}"
         & git pull
         & git submodule update --init --force --recursive
@@ -74,7 +78,7 @@ process {
 
             if ($LASTEXITCODE -ne 0) {
                 "-- Patch failed: ${patchName}"
-                return
+                exit 1
             }
         }
     }
@@ -88,14 +92,29 @@ process {
     }
     
     Function Build-ShadPs4 {
+        param(
+            [Switch] $MultiToolTask
+        )
+
         # Get the current git description for versioning
         $gitDesc = & git describe --always --long --dirty="${_gitDirty}"
     
         "-- Build version: ${gitDesc}"
-    
+
+        $buildStart = Get-Date
+
         # Now build shadPS4
         & cmake -S "${ShadPs4SourcePath}" -B "${_buildDir}" -DCMAKE_BUILD_TYPE="${BuildType}" -DGIT_DESC="${gitDesc}" -DCMAKE_PREFIX_PATH="${QtPath}" -T "ClangCL" -DENABLE_QT_GUI="${_enableQtGui}"
-        & cmake --build "${_buildDir}" --config "${BuildType}" --parallel
+
+        if ($MultiToolTask) {
+            & cmake --build "${_buildDir}" --config "${BuildType}" -- "/p:UseMultiToolTask=true"
+        } else {
+            & cmake --build "${_buildDir}" --config "${BuildType}" --parallel
+        }
+
+        $buildEnd = Get-Date
+
+        "-- Build time: $([math]::Round(($buildEnd - $buildStart).TotalMinutes, 2)) minutes"
     }
     
     Function Install-ShadPs4 {
@@ -121,11 +140,11 @@ process {
 
     if ($PullAndPatch) {
         # Pull and patch only, exit here
-        return
+        exit 0
     }
 
     Clean-ShadPs4
-    Build-ShadPs4
+    Build-ShadPs4 -MultiToolTask:(-not $SingleThreadedBuild)
 
     # If the emulator needs to be installed, we should run windeployqt first!
     Install-ShadPs4
