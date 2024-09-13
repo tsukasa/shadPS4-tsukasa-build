@@ -1,0 +1,12 @@
+diff --git a/src/core/libraries/network/http.cpp b/src/core/libraries/network/http.cpp
+index 8e06c76f..200bca36 100644
+--- a/src/core/libraries/network/http.cpp
++++ b/src/core/libraries/network/http.cpp
+@@ -582,7 +582,6 @@ int PS4_SYSV_ABI sceHttpUriUnescape() {
+ }
+ 
+ int PS4_SYSV_ABI sceHttpWaitRequest() {
+-    LOG_ERROR(Lib_Http, "(STUBBED) called");
+     return ORBIS_OK;
+ }
+ 

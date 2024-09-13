@@ -32,21 +32,33 @@ param
     [String] $InstallDestination = "G:\Emulation\Emulators\shadPS4",
     # Disable multithreaded build
     [Parameter(Mandatory=$False, Position=9)]
-    [Switch] $SingleThreadedBuild
+    [Switch] $SingleThreadedBuild,
+    # Enable patch
+    [Parameter(Mandatory=$False, Position=10)]
+    [String] $EnablePatch,
+    # Disable patch
+    [Parameter(Mandatory=$False, Position=11)]
+    [String] $DisablePatch,
+    # Commit
+    [Parameter(Mandatory=$False, Position=12)]
+    [String] $Commit
 )
 
 begin {
     # Enable Qt GUI
-    $_enableQtGui  = "ON"
+    $_enableQtGui   = "ON"
     # Set the git branch to pull from (should be "main")
-    $_gitBranch    = "main"
+    $_gitBranch     = "main"
     # Set the git dirty suffix
-    $_gitDirty     = "-${env:USERNAME}/bb-hacks"
+    $_gitDirty      = "-${env:USERNAME}/bb-hacks"
+    # GitHub user/repo to the shadPS4 repository
+    $_githubRepo    = "shadps4-emu/shadPS4"
     # Set the build and release directories, these should stay as-is
-    $_buildDirName = "build"
-    $_buildDir     = Join-Path -Path $ShadPs4SourcePath -ChildPath $_buildDirName
-    $_releaseDir   = Join-Path -Path $_buildDir -ChildPath $BuildType
-    $_patchesDir   = Join-Path -Path $PSScriptRoot -ChildPath "patches"
+    $_buildDirName  = "build"
+    $_buildDir      = Join-Path -Path $ShadPs4SourcePath -ChildPath $_buildDirName
+    $_releaseDir    = Join-Path -Path $_buildDir -ChildPath $BuildType
+    $_patchesDir    = Join-Path -Path $PSScriptRoot -ChildPath "patches"
+    $_configDir     = Join-Path -Path $PSScriptRoot -ChildPath "config"
 }
 process {
     Function Pull-ShadPs4 {
@@ -55,14 +67,129 @@ process {
         }
     
         # Reset and update source-code
+        "-- Git fetch"
         & git fetch --prune --tags
+        "-- Git reset"
         & git reset --hard
+        "-- Git clean"
         & git clean -f -d -e "${_buildDirName}/"
+        "-- Git checkout ${_gitBranch}"
         & git checkout "${_gitBranch}"
-        & git pull
+        
+        # Make sure we are on a branch if we want to pull...
+        $currentBranch = & git branch --show-current
+        if ($currentBranch) {
+            "-- Pulling ${currentBranch}..."
+            & git pull "origin" "${currentBranch}"
+        }
+
+        "-- Updating submodules..."
         & git submodule update --init --force --recursive
     }
+
+    Function Revert-Commits {
+        if (Test-Path -Path "${_configDir}\revert-commits.txt") {
+            $commits = Get-Content -Path "${_configDir}\revert-commits.txt"
+
+            foreach($commit in $commits) {
+                $commit = $commit.Trim()
+                # Ignore comments
+                if ($commit.StartsWith("#")) {
+                    continue
+                }
+                # Ignore empty lines
+                if ($commit -eq "") {
+                    continue
+                }
+                "-- Reverting commit: ${commit}"
+                & git revert --no-edit --no-commit $commit
+
+                if ($LASTEXITCODE -ne 0) {
+                    "-- Failed to revert commit ${commit}"
+                    exit 1
+                }
+
+                "-- Resetting to unstage..."
+                & git reset HEAD | Out-Null
+            }
+        }
+    }
+
+    Function Enable-Patch {
+        if (-not $EnablePatch) {
+            return
+        }
+
+        $patches = Get-ChildItem -Path $_patchesDir -Filter "*.patch.disabled"
+
+        foreach($patch in $patches) {
+            if ($patch.Name.Contains($EnablePatch)) {
+                $patchName = $patch.Name
+                Rename-Item -Path $patch.FullName -NewName $patch.Name.Replace(".patch.disabled", ".patch")
+                "-- Enabled patch: ${patchName}"
+            }
+        }
+
+        Exit 0
+    }
+
+    Function Disable-Patch {
+        if (-not $DisablePatch) {
+            return
+        }
+
+        $patches = Get-ChildItem -Path $_patchesDir -Filter "*.patch"
+
+        foreach($patch in $patches) {
+            if ($patch.Name.Contains($DisablePatch)) {
+                $patchName = $patch.Name
+                Rename-Item -Path $patch.FullName -NewName $patch.Name.Replace(".patch", ".patch.disabled")
+                "-- Disabled patch: ${patchName}"
+            }
+        }
+
+        Exit 0
+    }
+
+    Function Update-PrPatches {
+        if ($BuildOnly) {
+            return
+        }
     
+        $patches = Get-ChildItem -Path $_patchesDir -Filter *.patch
+
+        foreach($patch in $patches) {
+            $patchName = $patch.Name
+
+            if ($patchName -notmatch "^(\d+)_pr-(\d+)(.*)\.patch$") {
+                continue
+            }
+
+            $fileId   = $Matches[1]
+            $fileDesc = $Matches[3]
+            $prId     = $Matches[2]
+
+            # Use gh cli to get more details about the PR, for instance if it has been merged.
+            $ghPrStatus = & gh api -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" "repos/${_githubRepo}/pulls/${prId}" | ConvertFrom-Json
+
+            # If the PR details could not be fetched, skip this patch
+            if ($LASTEXITCODE -ne 0) {
+                "-- Failed to get PR details for PR #${prId}: ${patchName}"
+                continue
+            }
+
+            # If the PR is not open, delete the patch
+            if ($ghPrStatus.state -ne "open") {
+                "-- PR #${prId} not open, deleting patch: ${patchName}"
+                Remove-Item -Path $patch.FullName
+                continue
+            }
+
+            "-- Updating patch for PR #${prId}: $($ghPrStatus.title)"
+            Invoke-WebRequest -Uri "$($ghPrStatus.patch_url)" -Method Get -OutFile "${_patchesDir}\${fileId}_pr-${prId}${fileDesc}.patch"
+        }
+    }
+
     Function Patch-ShadPs4 {
         if ($BuildOnly) {
             return
@@ -133,9 +260,18 @@ process {
         & git clone "git@github.com:shadps4-emu/shadPS4.git" "${ShadPs4SourcePath}"
     }
 
+    If ($Commit) {
+        $_gitBranch = $Commit
+    }
+
     Push-Location -Path $ShadPs4SourcePath
 
+    Enable-Patch
+    Disable-Patch
+
     Pull-ShadPs4
+    Revert-Commits
+    Update-PrPatches
     Patch-ShadPs4
 
     if ($PullAndPatch) {

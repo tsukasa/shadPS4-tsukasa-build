@@ -1,0 +1,8 @@
+# Commits listed in this file will automatically be reverted
+# before patches are being applied.
+#
+# Please note that the order you put the commits is of import!
+#
+# This enabled you to isolate problematic single commits until
+# they have been mitigated.
+

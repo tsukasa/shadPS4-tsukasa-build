@@ -1,23 +1,17 @@
 diff --git a/src/qt_gui/main.cpp b/src/qt_gui/main.cpp
-index 02957c6d..394509af 100644
+index 68a674f5..a6331fc8 100644
 --- a/src/qt_gui/main.cpp
 +++ b/src/qt_gui/main.cpp
-@@ -30,14 +30,14 @@ int main(int argc, char* argv[]) {
-     // Ignore Qt logs
+@@ -31,8 +31,10 @@ int main(int argc, char* argv[]) {
      qInstallMessageHandler(customMessageHandler);
  
--    // Initialize the main window
+     // Initialize the main window
 -    MainWindow* m_main_window = new MainWindow(nullptr);
 -    m_main_window->Init();
--
-     // Check for command line arguments
-     if (has_command_line_argument) {
-         Core::Emulator emulator;
-         emulator.Run(argv[1]);
-+    } else {
-+        // Initialize the main window
++    if (!has_command_line_argument) {
 +        MainWindow* m_main_window = new MainWindow(nullptr);
 +        m_main_window->Init();
-     }
++    }
  
-     // Run the Qt application
+     // Check for command line arguments
+     if (has_command_line_argument) {
