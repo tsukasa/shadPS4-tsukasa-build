@@ -1,8 +1,8 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 8c7e03e3..8e534ee3 100644
+index c03cc3bc..2ba9de82 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -59,9 +59,15 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+@@ -92,9 +92,15 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
  # generate git revision information
  list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/externals/cmake-modules/")
  include(GetGitRevisionDescription)
@@ -18,6 +18,6 @@ index 8c7e03e3..8e534ee3 100644
 +if (NOT GIT_BRANCH)
 +    git_branch_name(GIT_BRANCH)
 +endif()
+ string(TIMESTAMP BUILD_DATE "%Y-%m-%d %H:%M:%S")
  
  configure_file("${CMAKE_CURRENT_SOURCE_DIR}/src/common/scm_rev.cpp.in" "${CMAKE_CURRENT_SOURCE_DIR}/src/common/scm_rev.cpp" @ONLY)
- 
