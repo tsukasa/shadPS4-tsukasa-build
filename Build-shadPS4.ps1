@@ -318,6 +318,11 @@ process {
         $buildEnd = Get-Date
 
         Write-Host "-- Build time: $([math]::Round(($buildEnd - $buildStart).TotalMinutes, 2)) minutes"
+
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "-- Build failed"
+            exit 1
+        }
     }
     
     Function Download-Patch {

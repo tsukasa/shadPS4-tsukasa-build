@@ -3,9 +3,7 @@
     "001_cmake.patch",
     "002_hidemainwindow.patch",
     "003_sceNetAccept-sleep.patch",
-    "004_sceHttpWaitRequest-nolog.patch",
-    "010_pr-1026.patch",
-    "010_pr-989.patch"
+    "004_sceHttpWaitRequest-nolog.patch"
   ],
   "commit": "main",
   "reverts": null
